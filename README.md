@@ -9,7 +9,7 @@
 需要 macOS 14 或更新版本、Xcode Command Line Tools 和已登录的图形桌面会话。若尚未安装 Command Line Tools，运行 `xcode-select --install`。
 
 ```sh
-git clone https://github.com/jadepam/mini-computer-use.git
+git clone https://github.com/aigeekops/mini-computer-use.git
 cd mini-computer-use
 bash build.sh
 .build/mini-computer-use status
