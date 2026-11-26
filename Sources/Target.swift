@@ -1,10 +1,36 @@
 import AppKit
 
 @MainActor
-final class DemoCheckbox: NSButton {
+final class DraftTitle: NSTextField {
+    var onChange: (() -> Void)?
+
     override func isAccessibilityElement() -> Bool { true }
-    override func accessibilityRole() -> NSAccessibility.Role? { .checkBox }
-    override func accessibilityValue() -> Any? { NSNumber(value: state.rawValue) }
+    override func accessibilityRole() -> NSAccessibility.Role? { .textField }
+    override func accessibilityValue() -> String? { stringValue }
+    override func setAccessibilityValue(_ value: Any?) {
+        guard let text = value as? String else { return }
+        stringValue = text
+        onChange?()
+    }
+}
+
+@MainActor
+final class DraftButton: NSButton {
+    let accessibilityKind: NSAccessibility.Role
+
+    init(role: NSAccessibility.Role) {
+        accessibilityKind = role
+        super.init(frame: .zero)
+    }
+
+    required init?(coder: NSCoder) { nil }
+
+    override func isAccessibilityElement() -> Bool { true }
+    override func accessibilityRole() -> NSAccessibility.Role? { accessibilityKind }
+    override func accessibilityValue() -> Any? {
+        accessibilityKind == .checkBox ? NSNumber(value: state.rawValue) : nil
+    }
+    override func isAccessibilityEnabled() -> Bool { isEnabled }
 
     override func accessibilityPerformPress() -> Bool {
         guard isEnabled else { return false }
@@ -14,28 +40,59 @@ final class DemoCheckbox: NSButton {
 }
 
 @MainActor
-final class Demo: NSObject, NSApplicationDelegate {
-    let status = NSTextField(labelWithString: "READY")
-    let window = NSWindow(
-        contentRect: NSRect(x: 0, y: 0, width: 480, height: 250),
-        styleMask: [.titled, .closable],
-        backing: .buffered,
-        defer: false
-    )
+final class DraftReceipt: NSTextField {
+    override func isAccessibilityElement() -> Bool { true }
+    override func accessibilityRole() -> NSAccessibility.Role? { .staticText }
+    override func accessibilityValue() -> String? { stringValue }
+}
+
+@MainActor
+final class Demo: NSObject, NSApplicationDelegate, NSTextFieldDelegate {
+    let titleField = DraftTitle(frame: .zero)
+    let reviewed = DraftButton(role: .checkBox)
+    let save = DraftButton(role: .button)
+    let receipt = DraftReceipt(frame: .zero)
+    let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 480, height: 320),
+                          styleMask: [.titled, .closable], backing: .buffered, defer: false)
+    private var draftURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("mini-computer-use-\(UUID().uuidString).json")
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        let title = NSTextField(labelWithString: "Mini Computer Use")
-        title.font = .systemFont(ofSize: 27, weight: .semibold)
-        status.font = .monospacedSystemFont(ofSize: 42, weight: .bold)
-        status.textColor = .secondaryLabelColor
-        let checkbox = DemoCheckbox(frame: .zero)
-        checkbox.setButtonType(.switch)
-        checkbox.title = "Mark done"
-        checkbox.target = self
-        checkbox.action = #selector(markDone(_:))
-        checkbox.font = .systemFont(ofSize: 18)
-        checkbox.setAccessibilityIdentifier("mark-done")
-        let stack = NSStackView(views: [title, status, checkbox])
+        let arguments = Array(CommandLine.arguments.dropFirst())
+        if arguments.count == 2, arguments.first == "--output" {
+            draftURL = URL(fileURLWithPath: arguments[1])
+        }
+
+        let heading = NSTextField(labelWithString: "Report draft")
+        heading.font = .systemFont(ofSize: 27, weight: .semibold)
+        titleField.placeholderString = "Draft title"
+        titleField.font = .systemFont(ofSize: 17)
+        titleField.delegate = self
+        titleField.onChange = { [weak self] in self?.updateSaveButton() }
+        titleField.setAccessibilityIdentifier("draft-title")
+        titleField.setAccessibilityLabel("Draft title")
+
+        reviewed.setButtonType(.switch)
+        reviewed.title = "Mark reviewed"
+        reviewed.target = self
+        reviewed.action = #selector(reviewChanged)
+        reviewed.setAccessibilityIdentifier("draft-reviewed")
+
+        save.title = "Save Draft"
+        save.bezelStyle = .rounded
+        save.target = self
+        save.action = #selector(saveDraft)
+        save.setAccessibilityIdentifier("draft-save")
+
+        receipt.isEditable = false
+        receipt.isSelectable = false
+        receipt.isBezeled = false
+        receipt.drawsBackground = false
+        receipt.font = .monospacedSystemFont(ofSize: 16, weight: .semibold)
+        receipt.stringValue = "Draft not saved"
+        receipt.setAccessibilityIdentifier("draft-receipt")
+
+        let stack = NSStackView(views: [heading, titleField, reviewed, save, receipt])
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = 16
@@ -43,62 +100,106 @@ final class Demo: NSObject, NSApplicationDelegate {
         let content = NSView()
         content.addSubview(stack)
         NSLayoutConstraint.activate([
-            stack.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 40),
-            stack.centerYAnchor.constraint(equalTo: content.centerYAnchor)
+            stack.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 36),
+            stack.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -36),
+            stack.centerYAnchor.constraint(equalTo: content.centerYAnchor),
+            titleField.widthAnchor.constraint(equalTo: stack.widthAnchor)
         ])
+        updateSaveButton()
         window.title = "Mini Computer Use Target"
         window.contentView = content
         window.center()
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
 
-        let arguments = Array(CommandLine.arguments.dropFirst())
-        if arguments.first == "--self-test" { selfTest(checkbox, outputPath: arguments.dropFirst().first) }
+        if arguments.first == "--self-test" { selfTest(outputPath: arguments.dropFirst().first) }
     }
 
-    @objc private func markDone(_ sender: NSButton) {
-        status.stringValue = sender.state == .on ? "DONE" : "READY"
-        status.textColor = sender.state == .on ? .systemGreen : .secondaryLabelColor
+    func controlTextDidChange(_ obj: Notification) { updateSaveButton() }
+
+    @objc private func reviewChanged() { updateSaveButton() }
+
+    private func updateSaveButton() {
+        save.isEnabled = !titleField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && reviewed.state == .on
+            && !receipt.stringValue.hasPrefix("Saved: ")
     }
 
-    private func selfTest(_ checkbox: NSButton, outputPath: String?) {
-        guard checkbox.accessibilityIdentifier() == "mark-done",
-              checkbox.accessibilityRole() == .checkBox,
-              (checkbox.accessibilityValue() as? NSNumber)?.intValue == 0,
-              status.stringValue == "READY" else {
-            print("Unexpected initial state: role=\(String(describing: checkbox.accessibilityRole())), identifier=\(String(describing: checkbox.accessibilityIdentifier())), value=\(checkbox.state.rawValue), label=\(status.stringValue)")
-            exit(1)
-        }
-        if let outputPath { renderContent(to: outputPath, name: "ready.png") }
-        guard checkbox.accessibilityPerformPress(),
-              (checkbox.accessibilityValue() as? NSNumber)?.intValue == 1,
-              status.stringValue == "DONE" else {
-            print("Accessibility press did not update the checkbox and status label.")
-            exit(1)
-        }
-        if let outputPath { renderContent(to: outputPath, name: "done.png") }
-        print("Target self-test passed: READY → DONE")
-        exit(0)
-    }
-
-    private func renderContent(to folder: String, name: String) {
-        guard let content = window.contentView else { exit(1) }
-        content.layoutSubtreeIfNeeded()
-        guard let bitmap = content.bitmapImageRepForCachingDisplay(in: content.bounds) else { exit(1) }
-        content.cacheDisplay(in: content.bounds, to: bitmap)
-        guard let png = bitmap.representation(using: .png, properties: [:]) else { exit(1) }
+    @objc private func saveDraft() {
+        guard save.isEnabled else { return }
+        let draft = Draft(title: titleField.stringValue, reviewed: reviewed.state == .on)
         do {
-            let path = URL(fileURLWithPath: folder, isDirectory: true).appendingPathComponent(name)
-            try png.write(to: path, options: .withoutOverwriting)
+            let data = try JSONEncoder().encode(draft)
+            try data.write(to: draftURL, options: .withoutOverwriting)
+            receipt.stringValue = DraftWorkflow.receipt(for: draft)
+            receipt.textColor = .systemGreen
+            updateSaveButton()
+        } catch {
+            receipt.stringValue = "Save failed: \(error.localizedDescription)"
+            receipt.textColor = .systemRed
+        }
+    }
+
+    private func state() -> FormState {
+        FormState(title: titleField.accessibilityValue() ?? "",
+                  reviewed: (reviewed.accessibilityValue() as? NSNumber)?.boolValue ?? false,
+                  canSave: save.isAccessibilityEnabled(),
+                  receipt: receipt.accessibilityValue() ?? "")
+    }
+
+    private func selfTest(outputPath: String?) {
+        do {
+            guard !state().canSave, !save.accessibilityPerformPress(), state().title.isEmpty,
+                  titleField.accessibilityRole() == .textField, reviewed.accessibilityRole() == .checkBox,
+                  save.accessibilityRole() == .button, receipt.accessibilityRole() == .staticText else {
+                throw DemoError("The initial form state or accessibility roles are incorrect.")
+            }
+            if let outputPath { try renderContent(to: outputPath, name: "ready.png") }
+
+            var actions: [String] = []
+            while let action = try DraftWorkflow.nextAction(from: state()), actions.count < 3 {
+                actions.append(action.description)
+                switch action {
+                case .enterTitle(let title): titleField.setAccessibilityValue(title)
+                case .markReviewed:
+                    guard reviewed.accessibilityPerformPress() else { throw DemoError("Review press failed.") }
+                case .saveDraft:
+                    guard save.accessibilityPerformPress() else { throw DemoError("Save press failed.") }
+                }
+                guard action.tookEffect(in: state(), goal: DraftWorkflow.goal) else {
+                    throw DemoError("\(action) did not take effect.")
+                }
+            }
+            guard actions == ["Enter title: Monthly report", "Mark reviewed", "Save draft"],
+                  state().receipt == DraftWorkflow.receipt(for: DraftWorkflow.goal) else {
+                throw DemoError("The expected actions or receipt are missing.")
+            }
+            try DraftWorkflow.verifyDraft(at: draftURL)
+            try FileManager.default.removeItem(at: draftURL)
+            if let outputPath { try renderContent(to: outputPath, name: "done.png") }
+            print("Target self-test passed: \(actions.joined(separator: " → ")) → verified draft.json")
+            exit(0)
         } catch {
             FileHandle.standardError.write(Data("\(error.localizedDescription)\n".utf8))
             exit(1)
         }
     }
 
-    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
-        true
+    private func renderContent(to folder: String, name: String) throws {
+        guard let content = window.contentView else { throw DemoError("Missing form content.") }
+        content.layoutSubtreeIfNeeded()
+        guard let bitmap = content.bitmapImageRepForCachingDisplay(in: content.bounds) else {
+            throw DemoError("Could not render the form.")
+        }
+        content.cacheDisplay(in: content.bounds, to: bitmap)
+        guard let png = bitmap.representation(using: .png, properties: [:]) else {
+            throw DemoError("Could not encode the rendered form.")
+        }
+        let path = URL(fileURLWithPath: folder, isDirectory: true).appendingPathComponent(name)
+        try png.write(to: path, options: .withoutOverwriting)
     }
+
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
 }
 
 @main

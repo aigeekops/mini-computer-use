@@ -1,0 +1,18 @@
+{
+  "name": "mini-computer-use",
+  "version": "0.2.0",
+  "private": true,
+  "description": "Electron workbench for a local macOS computer-use lab",
+  "main": "electron/main.cjs",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "build:native": "bash build.sh",
+    "start": "electron .",
+    "test": "electron . --smoke-test"
+  },
+  "devDependencies": {
+    "electron": "45.5.0"
+  }
+}

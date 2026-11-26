@@ -1,0 +1,60 @@
+:root {
+  color-scheme: light;
+  --ink: #172c3f;
+  --muted: #405970;
+  --background: #edf2f5;
+  --panel: #f8fafb;
+  --accent: #2d5e87;
+  --line: #bed0df;
+  font-family: "Avenir Next", "PingFang SC", sans-serif;
+  color: var(--ink);
+  background: var(--background);
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; padding: 42px; }
+header { margin-bottom: 30px; }
+h1, h2, p { margin: 0; }
+h1 { font-size: clamp(30px, 4vw, 46px); letter-spacing: -.045em; line-height: 1.1; }
+header p { margin-top: 14px; color: var(--muted); }
+h2 { font-size: 18px; }
+main { display: grid; grid-template-columns: minmax(235px, 1fr) minmax(300px, 1.55fr); gap: 26px; }
+main > section { min-width: 0; border-top: 2px solid var(--accent); padding-top: 16px; }
+ol { margin: 22px 0; padding-left: 23px; line-height: 2; }
+li::marker { color: var(--accent); font-variant-numeric: tabular-nums; }
+.capture { display: flex; gap: 8px; align-items: center; margin-bottom: 15px; }
+input { margin: 0; accent-color: var(--accent); }
+button {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 8px 11px;
+  color: var(--ink);
+  background: var(--panel);
+  cursor: pointer;
+  font: inherit;
+}
+button:hover { border-color: var(--accent); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+button:disabled { cursor: wait; opacity: .65; }
+.primary { padding: 9px 22px; color: white; background: var(--accent); border-color: var(--accent); }
+.permissions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 29px; }
+.permissions button, .help, #status { font-size: 13px; }
+.help { color: var(--muted); margin-top: 10px; }
+.activity-title { display: flex; justify-content: space-between; align-items: center; }
+#status { color: var(--muted); }
+pre {
+  min-height: 245px;
+  max-height: 350px;
+  padding: 18px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font: 13px/1.65 "SF Mono", Menlo, monospace;
+}
+@media (max-width: 690px) {
+  body { padding: 24px; }
+  main { grid-template-columns: 1fr; }
+}

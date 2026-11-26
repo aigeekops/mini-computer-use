@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'">
+  <title>Mini Computer Use</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="renderer.js" defer></script>
+</head>
+<body>
+  <header>
+    <h1>Mini Computer Use</h1>
+    <p>在独立的 Mac 窗口保存一份演示草稿。</p>
+  </header>
+  <main>
+    <section aria-labelledby="task">
+      <h2 id="task">保存草稿</h2>
+      <ol>
+        <li>填写 <strong>Monthly report</strong></li>
+        <li>勾选 <strong>Mark reviewed</strong></li>
+        <li>保存并校验回执与 JSON 文件</li>
+      </ol>
+      <label class="capture"><input id="capture" type="checkbox"> 保存操作前后截图</label>
+      <button id="run" class="primary" type="button">运行实验</button>
+      <div class="permissions" aria-label="权限">
+        <button data-command="status" type="button">检查权限</button>
+        <button data-command="accessibility" type="button">申请辅助功能</button>
+        <button data-command="screen" type="button">申请屏幕录制</button>
+      </div>
+      <p class="help">按 macOS 提示完成授权，再检查权限。</p>
+    </section>
+    <section class="activity" aria-labelledby="activity-title">
+      <div class="activity-title">
+        <h2 id="activity-title">运行记录</h2>
+        <p id="status" role="status">待运行</p>
+      </div>
+      <pre id="output" role="log" tabindex="0">运行后，这里会显示每一步的状态与结果。</pre>
+    </section>
+  </main>
+</body>
+</html>
