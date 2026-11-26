@@ -36,8 +36,12 @@ struct MiniComputerUse {
         guard AXIsProcessTrusted() else {
             throw DemoError("Accessibility permission is off. Enable it in System Settings and retry.")
         }
-        if capture && !CGPreflightScreenCaptureAccess() {
-            throw DemoError("Screen recording permission is off. Enable it or run the Accessibility-only demo.")
+        if capture {
+            guard CGPreflightScreenCaptureAccess() else {
+                throw DemoError("Screen recording permission is off. Enable it or run the Accessibility-only demo.")
+            }
+            // Initialize the helper's window-server connection before filtering a window.
+            _ = NSApplication.shared
         }
 
         let output = URL(fileURLWithPath: "runs", isDirectory: true)
